@@ -25,6 +25,62 @@ class Neo:
 
     def _create_nodes_in_graph(self):
 
+        with self.driver.session() as session:
+            query = (
+                "LOAD CSV FROM 'file:///nodes.tsv' AS line FIELDTERMINATOR '\t' "
+                "MERGE (:Node{id: line[0], name: line[1], type: line[2]})"
+            )
+
+            result = session.run(query)
+            summary = result.consume()
+            nodes_created = summary.counters.nodes_created
+            time_elapsed = summary.result_available_after
+
+            if nodes_created > 0:
+                print(f"{nodes_created} nodes created in Neo4j database at {self.driver.get_server_info().address} in {time_elapsed} ms")
+            else:
+                print("No nodes created in Neo4j database")
+
+    def _create_edges_in_graph(self):
+
+        with self.driver.session() as session:
+            query = (
+                "LOAD CSV FROM 'file:///edges.tsv' AS line FIELDTERMINATOR '\t' "
+                "MATCH (s:Node{id:line[0]}) "
+                "MATCH (t:Node{id:line[2]}) "
+                "WITH line, substring(line[1], 1, size(line[1]) - 2) AS relationship, s, t "
+                "WITH relationship, s, t, "
+                "     CASE relationship " 
+                "        WHEN 'r' THEN 'RESEMBLES' " 
+                "        WHEN 'i' THEN 'INTERACTS' " 
+                "        WHEN 'u' THEN 'UPREGULATES' " 
+                "        WHEN 'd' THEN 'DOWNREGULATES' " 
+                "        WHEN 'e' THEN 'EXPRESSES' " 
+                "        WHEN 'a' THEN 'ASSOCIATES' " 
+                "        WHEN 'b' THEN 'BINDS' " 
+                "        WHEN 'c' THEN 'COVARIES' " 
+                "        WHEN 'l' THEN 'LOCALIZES' " 
+                "        WHEN 't' THEN 'TREATS' " 
+                "        WHEN 'p' THEN 'PALLIATES' " 
+                "        WHEN 'r>' THEN 'REGULATES' " 
+                "        ELSE null " 
+                "     END AS relationship_type "
+                "WHERE relationship_type IS NOT NULL "
+                "MERGE (s)-[r:RELATIONSHIP{code:relationship_type}]->(t) "
+            )
+
+            result = session.run(query)
+            summary = result.consume()
+            relationships_created = summary.counters.relationships_created
+            time_elapsed = summary.result_available_after
+
+            if relationships_created > 0:
+                print(f"{relationships_created} relationships created in Neo4j database at {self.driver.get_server_info().address} in {time_elapsed} ms")
+            else:
+                print("No relationships created in Neo4j database")
+
+    def _create_nodes_in_graph_manual(self):
+
         skipped_header = False
 
         with (self.driver.session() as session):
@@ -80,7 +136,7 @@ class Neo:
                     else:
                         print(f"Failed to create edge {source}-[{relationship[0]}]->{target}. It may exist already.")
 
-    def _extract_relationship_from_metaedge_manual(self, metaedge: str) -> (str, str, str):
+    def _extract_relationship_from_metaedge(self, metaedge: str) -> (str, str, str):
         """
         Extract the relationship, source node's code, and target node's code as a tuple in that order.
 
@@ -157,6 +213,7 @@ def query_neo4j_model():
     try:
         app.test_connect()
         app._create_nodes_in_graph()
+        app._create_edges_in_graph()
     finally:
         app.close()
 
