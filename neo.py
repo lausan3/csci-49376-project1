@@ -30,6 +30,7 @@ class Neo:
                 "LOAD CSV FROM 'file:///nodes.tsv' AS line FIELDTERMINATOR '\t' "
                 "CALL { "
                 "   WITH line "
+                "   WHERE line[0] <> 'id' "
                 "   MERGE (:Node{id: line[0], name: line[1], type: line[2]}) "
                 "} IN TRANSACTIONS OF 500 ROWS "
             )
