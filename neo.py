@@ -222,6 +222,58 @@ class Neo:
                     else:
                         print(f"Failed to create edge {source}-[{relationship[0]}]->{target}. It may exist already.")
 
+    def query1(self, disease_id: str):
+        """
+        Given a disease id, what is its name, what are drug names that can treat or palliate this disease,
+        what are gene names that cause this disease, and where this disease occurs?
+        Obtain and output this information in a single query.
+        """
+        with self.driver.session() as session:
+            query = (
+                f"MATCH (disease:Node{{ id:'{disease_id}' }}) "
+                f"WHERE disease IS NOT NULL "
+                f"WITH disease "
+                f"OPTIONAL MATCH (compounds:Node{{ type:'Compound' }})-[compounds_relate:RELATES]->(disease) "
+                f"WHERE compounds_relate.type = 'TREATS' OR compounds_relate.type = 'PALLIATES' "
+                f"WITH disease, collect(compounds) AS compounds "
+                f"OPTIONAL MATCH (disease)-[causes_relate:RELATES{{ type:'ASSOCIATES' }}]->(causes:Node{{ type:'Gene' }}) "
+                f"WITH disease, compounds, collect(causes) AS causes "
+                f"OPTIONAL MATCH (disease)-[localizes:RELATES{{ type:'LOCALIZES' }}]->(local:Node {{ type:'Anatomy' }}) "
+                f"RETURN disease, disease.name, compounds, causes, collect(local) AS localizes"
+            )
+
+            result = session.run(query)
+            data = result.data()
+
+            if len(data) <= 0:
+                time_elapsed = result.consume().result_available_after
+                print(f"Could not find any data for disease id {disease_id}")
+                print(f"Time elapsed: {time_elapsed / 1000} seconds\n")
+                return
+
+            items = data[0]
+            disease_name = items['disease.name']
+            compounds = [(compound['name'], compound['id']) for compound in items['compounds']]
+            causes = [(gene['name'], gene['id']) for gene in items['causes']]
+            localizes = [(place['name'], place['id']) for place in items['localizes']]
+
+            summary = result.consume()
+            time_elapsed = summary.result_available_after
+
+            print(f"Successfully queried hetionet for {disease_id}!\n"
+                  + f"-----DISEASE-----\n"
+                  + f"Disease Id: {disease_id}\nName: {disease_name}\n"
+                  + f"------DRUGS------\n"
+                    f"Compounds/Drugs that treat {disease_name}: \n{compounds if len(compounds) > 0 else "None"}\n"
+                    f"-----CAUSES------\n"
+                    f"Genes that cause {disease_name}: \n{causes if len(causes) > 0 else "None"}\n"
+                    f"----LOCALIZES----\n"
+                    f"Areas that {disease_name} localizes in: \n{localizes if len(localizes) > 0 else "None"}\n"
+                    f"-----------------\n"
+                  + f"Time elapsed: {time_elapsed / 1000} seconds\n")
+
+
+
     def test_connect(self):
         """
         Test the connection to the remote Neo4j Aura server.
@@ -250,8 +302,7 @@ def query_neo4j_model():
 
     try:
         app.test_connect()
-        app._create_nodes_in_graph()
-        app._create_edges_in_graph()
+        app.query1("Disease::DOID:3121")
     finally:
         app.close()
 
