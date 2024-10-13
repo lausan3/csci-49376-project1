@@ -235,44 +235,81 @@ class Neo:
                 f"WITH disease "
                 f"OPTIONAL MATCH (compounds:Node{{ type:'Compound' }})-[compounds_relate:RELATES]->(disease) "
                 f"WHERE compounds_relate.type = 'TREATS' OR compounds_relate.type = 'PALLIATES' "
-                f"WITH disease, collect(compounds) AS compounds "
+                f"WITH disease, collect(DISTINCT compounds) AS compounds "
                 f"OPTIONAL MATCH (disease)-[causes_relate:RELATES{{ type:'ASSOCIATES' }}]->(causes:Node{{ type:'Gene' }}) "
-                f"WITH disease, compounds, collect(causes) AS causes "
+                f"WITH disease, compounds, collect(DISTINCT causes) AS causes "
                 f"OPTIONAL MATCH (disease)-[localizes:RELATES{{ type:'LOCALIZES' }}]->(local:Node {{ type:'Anatomy' }}) "
-                f"RETURN disease, disease.name, compounds, causes, collect(local) AS localizes"
+                f"RETURN disease.name AS disease_name, compounds, causes, collect(DISTINCT local) AS localizes"
             )
 
             result = session.run(query)
             data = result.data()
+            time_elapsed = result.consume().result_available_after
 
             if len(data) <= 0:
-                time_elapsed = result.consume().result_available_after
                 print(f"Could not find any data for disease id {disease_id}")
                 print(f"Time elapsed: {time_elapsed / 1000} seconds\n")
                 return
 
             items = data[0]
-            disease_name = items['disease.name']
-            compounds = [(compound['name'], compound['id']) for compound in items['compounds']]
-            causes = [(gene['name'], gene['id']) for gene in items['causes']]
-            localizes = [(place['name'], place['id']) for place in items['localizes']]
-
-            summary = result.consume()
-            time_elapsed = summary.result_available_after
+            disease_name = items['disease_name']
+            compounds = [compound['name'] for compound in items['compounds']]
+            causes = [gene['name'] for gene in items['causes']]
+            localizes = [place['name'] for place in items['localizes']]
 
             print(f"Successfully queried hetionet for {disease_id}!\n"
                   + f"-----DISEASE-----\n"
                   + f"Disease Id: {disease_id}\nName: {disease_name}\n"
                   + f"------DRUGS------\n"
-                    f"Compounds/Drugs that treat {disease_name}: \n{compounds if len(compounds) > 0 else "None"}\n"
+                    f"We found {len(compounds)} Compounds/Drugs that treat {disease_name}: \n{compounds if len(compounds) > 0 else "None"}\n"
                     f"-----CAUSES------\n"
-                    f"Genes that cause {disease_name}: \n{causes if len(causes) > 0 else "None"}\n"
+                    f"We found {len(causes)} Genes that cause {disease_name}: \n{causes if len(causes) > 0 else "None"}\n"
                     f"----LOCALIZES----\n"
-                    f"Areas that {disease_name} localizes in: \n{localizes if len(localizes) > 0 else "None"}\n"
+                    f"We found {len(localizes)} Areas that {disease_name} localizes in: \n{localizes if len(localizes) > 0 else "None"}\n"
                     f"-----------------\n"
                   + f"Time elapsed: {time_elapsed / 1000} seconds\n")
 
+    def query2(self, disease_id: str):
+        """
+        We assume that a compound can treat a disease if the compound up-regulates/down-regulates a gene,
+        but the location down-regulates/up-regulates the gene in an opposite direction where the disease occurs.
+        Find all compounds that can treat a new disease (i.e. the missing edges between compound and disease excluding existing drugs).
+        Obtain and output all drugs in a single query.
+        """
+        with self.driver.session() as session:
+            query = (
+                f"MATCH (disease:Node{{ id:'{disease_id}' }}) "
+                f"WHERE disease IS NOT NULL "
+                f"MATCH (disease)-[:RELATES{{ type:'LOCALIZES' }}]->(localizes:Node {{ type:'Anatomy' }}) "
+                f"WITH disease, localizes AS locals "
+                f"MATCH (locals)-[l:RELATES]->(genes:Node{{ type:'Gene' }})<-[c:RELATES]-"
+                f"(compounds:Node{{ type:'Compound' }})-[r:RELATES]->(disease) "
+                f"WHERE r.type<>'TREATS' AND ((l.type = 'UPREGULATES' AND c.type='DOWNREGULATES') OR "
+                f"(l.type = 'DOWNREGULATES' AND c.type='UPREGULATES')) "
+                f"WITH disease.name AS disease_name, collect(DISTINCT compounds) AS compounds_treat_disease "
+                f"RETURN disease_name, compounds_treat_disease"
+            )
 
+            result = session.run(query)
+            data = result.data()
+            time_elapsed = result.consume().result_available_after
+
+            if len(data) <= 0:
+                print(f"Could not obtain compounds that treat the disease with id {disease_id}.")
+                print(f"Time elapsed: {time_elapsed / 1000} seconds\n")
+                return
+
+            items = data[0]
+            disease_name = items['disease_name']
+            compounds = [compound['name'] for compound in items['compounds_treat_disease']]
+
+            print(f"Successfully queried hetionet for {disease_id}!\n"
+                  + f"-----DISEASE-----\n"
+                  + f"Disease Id: {disease_id}\nName: {disease_name}\n"
+                  + f"------DRUGS------\n"
+                    f"We found {len(compounds)} Compounds/Drugs that can treat {disease_name}: \n{compounds}\n"
+                    f"-----------------\n"
+                  + f"Time elapsed: {time_elapsed / 1000} seconds\n")
 
     def test_connect(self):
         """
@@ -302,7 +339,7 @@ def query_neo4j_model():
 
     try:
         app.test_connect()
-        app.query1("Disease::DOID:3121")
+        app.query2("Disease::DOID:11612")
     finally:
         app.close()
 
