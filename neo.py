@@ -257,17 +257,17 @@ class Neo:
             causes = [gene['name'] for gene in items['causes']]
             localizes = [place['name'] for place in items['localizes']]
 
-            print(f"Successfully queried hetionet for {disease_id}!\n"
+            print(f"Successfully queried hetionet for {disease_id}!\n\n"
                   + f"-----DISEASE-----\n"
-                  + f"Disease Id: {disease_id}\nName: {disease_name}\n"
+                  + f"Disease Id: {disease_id}\nName: {disease_name}\n\n"
                   + f"------DRUGS------\n"
-                    f"We found {len(compounds)} Compounds/Drugs that treat {disease_name}: \n{compounds if len(compounds) > 0 else "None"}\n"
+                    f"We found {len(compounds)} Compounds/Drugs that treat {disease_name}: \n{compounds if len(compounds) > 0 else "None"}\n\n"
                     f"-----CAUSES------\n"
-                    f"We found {len(causes)} Genes that cause {disease_name}: \n{causes if len(causes) > 0 else "None"}\n"
+                    f"We found {len(causes)} Genes that cause {disease_name}: \n{causes if len(causes) > 0 else "None"}\n\n"
                     f"----LOCALIZES----\n"
-                    f"We found {len(localizes)} Areas that {disease_name} localizes in: \n{localizes if len(localizes) > 0 else "None"}\n"
-                    f"-----------------\n"
-                  + f"Time elapsed: {time_elapsed / 1000} seconds\n")
+                    f"We found {len(localizes)} Areas that {disease_name} localizes in: \n{localizes if len(localizes) > 0 else "None"}\n\n"
+                  + f"Time elapsed: {time_elapsed / 1000} seconds\n"
+                  + f"-----------------\n")
 
     def query2(self, disease_id: str):
         """
@@ -303,13 +303,13 @@ class Neo:
             disease_name = items['disease_name']
             compounds = [compound['name'] for compound in items['compounds_treat_disease']]
 
-            print(f"Successfully queried hetionet for {disease_id}!\n"
+            print(f"Successfully queried hetionet for {disease_id}!\n\n"
                   + f"-----DISEASE-----\n"
-                  + f"Disease Id: {disease_id}\nName: {disease_name}\n"
+                  + f"Disease Id: {disease_id}\nName: {disease_name}\n\n"
                   + f"------DRUGS------\n"
-                    f"We found {len(compounds)} Compounds/Drugs that can treat {disease_name}: \n{compounds}\n"
-                    f"-----------------\n"
-                  + f"Time elapsed: {time_elapsed / 1000} seconds\n")
+                    f"We found {len(compounds)} Compounds/Drugs that can treat {disease_name}: \n{compounds}\n\n"
+                  + f"Time elapsed: {time_elapsed / 1000} seconds\n"
+                  + f"-----------------\n")
 
     def test_connect(self):
         """
@@ -332,16 +332,3 @@ class Neo:
 
     def close(self):
         self.driver.close()
-
-
-def query_neo4j_model():
-    app = Neo()
-
-    try:
-        app.test_connect()
-        app.query2("Disease::DOID:11612")
-    finally:
-        app.close()
-
-
-query_neo4j_model()
