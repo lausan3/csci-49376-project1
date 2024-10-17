@@ -78,13 +78,13 @@ def find_new_treatments(disease_id):
     unique_locations = list(set(anatomy_locations))
     
     #Find all genes regulated by these locations
-    anatomy_regulation_edges = list(edges_collection.find({
+    anatomy_edges = list(edges_collection.find({
         "source": {"$in": unique_locations},
         "metaedge": {"$in": ["AuG", "AdG"]}
     }))
     
     regulated_genes = {}
-    for edge in anatomy_regulation_edges:
+    for edge in anatomy_edges:
         gene_id = edge['target']
         anatomy_regulation = edge['metaedge']
         regulated_genes[gene_id] = anatomy_regulation
@@ -100,14 +100,14 @@ def find_new_treatments(disease_id):
 
     #Find compounds regulate genes in opposite direction
     gene_ids = list(regulated_genes.keys())
-    compound_regulation_edges = list(edges_collection.find({
+    compound_edges = list(edges_collection.find({
         "target": {"$in": gene_ids},
         "metaedge": {"$in": ["CuG", "CdG"]}
     }))
 
     potential_new_treatments = set()
 
-    for edge in compound_regulation_edges:
+    for edge in compound_edges:
         gene_id = edge['target']
         compound_id = edge['source']
         compound_regulation = edge['metaedge']
